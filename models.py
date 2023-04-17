@@ -24,6 +24,7 @@ class BaseModel(nn.Module):
         return x
     
 
+
 def conv_batch(in_num, out_num, kernel_size=3, padding=1, stride=1):
     return nn.Sequential(
         nn.Conv2d(in_num, out_num, kernel_size=kernel_size, stride=stride, padding=padding, bias=False),
