@@ -16,7 +16,9 @@ import data_utils
 import models
 
 import wandb
-
+from torch.utils.data import WeightedRandomSampler
+from collections import Counter
+import loss
 
 def train(model, dataloader, criterion, optimizer, device, epoch):
     loss = utils.AverageMeter()
@@ -77,7 +79,8 @@ def main(args):
     if not args.wandb_off:
         wandb.init(
             project="mask-classification",
-            entity="5pencv",
+            # entity="5pencv",
+            entity="healthy-ai",
             name=f"{args.exp_name}",
             save_code=True,
 
@@ -85,7 +88,7 @@ def main(args):
                 "learning_rate": args.lr,
                 "optimizer": args.optimizer,
                 "model": args.model,
-                "loss": "CrossEntropyLoss",
+                "loss": args.loss,
                 "batch_size": args.batch_size,
                 "epochs": args.epochs,
                 "target": args.target,
@@ -98,21 +101,39 @@ def main(args):
 
     transform = data_utils.init_transform(args.aug, args.p)
 
-    train_image_files = data_utils.generate_file_list(args.datadir, val_split=args.val_split, train=True)
-    valid_image_files = data_utils.generate_file_list(args.datadir, val_split=args.val_split, train=False)
+    train_image_files = data_utils.generate_file_list(args.datadir, val_split=args.val_split, train=True, stratify=True)
+    valid_image_files = data_utils.generate_file_list(args.datadir, val_split=args.val_split, train=False, stratify=True)
     
     train_dataset = data_utils.MaskDataset(train_image_files, args.target, group_age=True, transform=transform)
     valid_dataset = data_utils.MaskDataset(valid_image_files, args.target, group_age=True, transform=None)
     
+    # with WeightedRandomSampler
+    num_samples = len(train_dataset)
+    train_labels = []
+    for _, label in train_dataset:
+        train_labels.append(label)
+    class_cnts = Counter(train_labels)
+    
+    class_weights = [num_samples / class_cnts[i] for i in range(18)]
+    weights = [class_weights[t] for t in train_labels]
+    sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, num_samples)
+    
+    # train_dataloader = data_utils.get_dataloader(train_dataset,
+    #                                             args.batch_size,
+    #                                             shuffle=args.shuffle_off,
+    #                                             drop_last=True,
+    #                                             )
     train_dataloader = data_utils.get_dataloader(train_dataset,
                                                 args.batch_size,
-                                                shuffle=args.shuffle_off,
+                                                shuffle=False,
                                                 drop_last=True,
+                                                sampler=sampler,
                                                 )
     valid_dataloader = data_utils.get_dataloader(valid_dataset,
                                                 args.valid_batch_size,
                                                 shuffle=False,
                                                 drop_last=True,
+                                                sampler=None,
                                                 )
 
     # model_dict = models.init_model_dict()
@@ -129,6 +150,7 @@ def main(args):
     model.to(DEVICE)
 
     criterion = torch.nn.CrossEntropyLoss()
+    criterion = loss.init_loss(args.loss)
 
     optimizer = __import__('torch.optim', fromlist='optim').__dict__[args.optimizer](
         model.parameters(), lr=args.lr
@@ -209,26 +231,28 @@ if __name__ == "__main__":
 
     # experiment and log settings
     parser.add_argument('--wandb_off', action='store_true', help='Do not log results in wandb')
-    parser.add_argument('--save_ckpt', action='store_false', help="Save checkpoint at the end of every epoch.")
-    parser.add_argument('--exp_name', type=str, required=True, help="Experiment name")
+    parser.add_argument('--save_ckpt', action='store_true', help="Save checkpoint at the end of every epoch.")
+    parser.add_argument('--exp_name', type=str, default='test', help="Experiment name") # required=True,
 
     # datasets
-    parser.add_argument('--datadir', '--data_dir', type=str, default='input/data/train/images', help='Data directory.')
+    parser.add_argument('--datadir', '--data_dir', type=str, default='/opt/ml/input/data/train/images', help='Data directory.')
     parser.add_argument('--val_split', type=float, default=0.2, help='Validation split ratio. Set zero to use all data for training.')
     parser.add_argument('--shuffle_off', action='store_false', help="Do not shuffle train dataset.")
     parser.add_argument('--aug', type=str, default='None', help='Data augmentation.')
     parser.add_argument('--p', type=float, default=1, help='Possibility')
 
     # model configs
-    parser.add_argument('--model', type=str, help='Name of the model to train.')
+    parser.add_argument('--model', type=str, default='efficientnet_b0', help='Name of the model to train.')
     parser.add_argument('--n_class', type=int, default=18, help="The number of classes.")
     parser.add_argument('--target', type=str, default='all', choices=['all', 'age', 'gender', 'mask'], help='Target label to predict.')
 
     # hyper-parameters
-    parser.add_argument('--batch_size', type=int, default=32, help='Batch size.')
+    parser.add_argument('--batch_size', type=int, default=64, help='Batch size.')
     parser.add_argument('--valid_batch_size', type=int, default=100, help='input batch size for validing (default: 100)')
     parser.add_argument('--epochs', type=int, default=100, help='The number of epochs.')
     parser.add_argument('--lr', type=float, default=1e-3, help="Learning rate.")
+    
+    parser.add_argument('--loss', type=str, default='CE', help='Loss Function.')
     parser.add_argument('--optimizer', type=str, default='Adam', choices=['Adam'], help='Optimizer.')
     parser.add_argument('--scheduler', action='store_true', help='Use CosineAnnealingLR scheduler.')
 

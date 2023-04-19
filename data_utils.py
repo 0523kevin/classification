@@ -12,7 +12,7 @@ from torch import nn
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.dataset import Subset
-
+from sklearn.model_selection import train_test_split
 
 def init_transform(name, p):
     transform_dict = {
@@ -43,7 +43,7 @@ def init_transform(name, p):
     return transform_dict[name]
 
 
-def generate_file_list(data_dir, val_split=0.2, train=True):
+def generate_file_list(data_dir, val_split=0.2, train=True, stratify=True):
     """Generate a list of image files.
     Args:
         data_dir (str):   
@@ -54,18 +54,47 @@ def generate_file_list(data_dir, val_split=0.2, train=True):
     image_files = glob.glob(query, recursive=True)
     image_files.sort()
 
-    train_size = int(len(image_files) * (1 - val_split))
-    # file_indices = np.arange(len(image_files))
+    if not stratify:
+        # without stratify
+        train_size = int(len(image_files) * (1 - val_split))
 
-    if train:
-        image_files = image_files[:train_size]
+        if train:
+            image_files = image_files[:train_size]
+        else:
+            image_files = image_files[train_size:]        
+
+        if not image_files:
+            logging.warning(f"No image file found in '{data_dir}'.")
+
+        return image_files
+    
     else:
-        image_files = image_files[train_size:]        
+        # with stratify
+        if not image_files:
+            logging.warning(f"No image file found in '{data_dir}'.")
+        labels = []
+        for idx in range(len(image_files)):
+            fpath = image_files[idx]
 
-    if not image_files:
-        logging.warning(f"No image file found in '{data_dir}'.")
+            label = {}
+            fpath_split = os.path.split(fpath)
+            mask = fpath_split[1].split('.')[0]
+            identity = os.path.split(fpath_split[0])[1].split('_')
+            age, gender = int(identity[3]), identity[1]
 
-    return image_files
+            label['age'] = _age_to_cls(age)
+            label['gender'] = _gender_to_cls(gender)
+            label['mask'] = _mask_to_cls(mask)
+
+            label = 6 * label['mask'] + 3 * label['gender'] + label['age']
+            labels.append(label)
+
+        x_train, x_test = train_test_split(image_files, test_size=0.2, stratify = labels)
+        
+        if train:
+            return x_train
+        else:
+            return x_test
 
 
 class MaskDataset(Dataset):
@@ -133,8 +162,10 @@ class MaskDataset(Dataset):
 
 
 
-def get_dataloader(dataset, batch_size=8, shuffle=True, drop_last=True):
-    dataloader = DataLoader(dataset,batch_size=batch_size, shuffle=shuffle, drop_last=drop_last)
+# def get_dataloader(dataset, batch_size=8, shuffle=True, drop_last=True):
+def get_dataloader(dataset, batch_size=8, shuffle=True, drop_last=True, sampler=None):
+    # dataloader = DataLoader(dataset,batch_size=batch_size, shuffle=shuffle, drop_last=drop_last)
+    dataloader = DataLoader(dataset,batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, sampler=sampler)
 
     msg = 'Get dataloader...\n'
         
@@ -144,3 +175,27 @@ def get_dataloader(dataset, batch_size=8, shuffle=True, drop_last=True):
     logging.info(msg)
 
     return dataloader
+
+# For stratify
+def _gender_to_cls( gender):
+    assert gender in ['male', 'female']
+
+    if gender == 'male':
+        return 0
+    elif gender == 'female':
+        return 1
+    
+def _age_to_cls( age):
+    if age < 30:
+        return 0
+    elif 30 <= age < 60:
+        return 1
+    else:
+        return 2
+
+def _mask_to_cls( mask):
+    # mask_types = {'incorrect_mask': 0, 'mask1': 1, 'mask2': 2,
+    #               'mask3': 3, 'mask4': 4, 'mask5': 5, 'normal': 6}
+    mask_types = {'incorrect_mask': 1, 'mask1': 0, 'mask2': 0,
+                    'mask3': 0, 'mask4': 0, 'mask5': 0, 'normal': 2}
+    return mask_types[mask]
