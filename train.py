@@ -80,7 +80,7 @@ def main(args):
         wandb.init(
             project="mask-classification",
             # entity="5pencv",
-            entity="healthy-ai",
+            entity="yoonjikim",
             name=f"{args.exp_name}",
             save_code=True,
 
@@ -99,7 +99,7 @@ def main(args):
 
     # transform = data_utils.transform_dict[args.aug] if args.aug in data_utils.transform_dict.keys() else None
 
-    transform = data_utils.init_transform(args.aug, args.p)
+    transform = data_utils.init_transform(args.aug)  #args.p
 
     train_image_files = data_utils.generate_file_list(args.datadir, val_split=args.val_split, train=True, stratify=True)
     valid_image_files = data_utils.generate_file_list(args.datadir, val_split=args.val_split, train=False, stratify=True)
@@ -239,7 +239,7 @@ if __name__ == "__main__":
     parser.add_argument('--val_split', type=float, default=0.2, help='Validation split ratio. Set zero to use all data for training.')
     parser.add_argument('--shuffle_off', action='store_false', help="Do not shuffle train dataset.")
     parser.add_argument('--aug', type=str, default='None', help='Data augmentation.')
-    parser.add_argument('--p', type=float, default=1, help='Possibility')
+    # parser.add_argument('--p', type=float, default=1, help='Possibility')
 
     # model configs
     parser.add_argument('--model', type=str, default='efficientnet_b0', help='Name of the model to train.')

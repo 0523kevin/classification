@@ -14,8 +14,9 @@ from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.dataset import Subset
 from sklearn.model_selection import train_test_split
 
-def init_transform(name, p):
+def init_transform(name): #p
     transform_dict = {
+        'norm' : torch.nn.Sequential(transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))),
         'grayscale': torch.nn.Sequential(
                     transforms.Grayscale(num_output_channels=3),
                 ),
@@ -27,18 +28,7 @@ def init_transform(name, p):
                                     transforms.CenterCrop(size=(320,320)),
                                     transforms.Resize((512,384)),
                                     # transforms.GaussianBlur((5,9), sigma=(0.1,5)),
-                                ]), p=p)),
-
-    # 'gray_hor_crop_gau1': torch.nn.Sequential(transforms.RandomApply(torch.nn.ModuleList([
-    #                                         transforms.Grayscale(num_output_channels=3),]), p=0.5),
-	# 									# transforms.RandomApply(torch.nn.ModuleList([
-    #                                     #     transforms.ColorJitter(0.5),]), p=0.5),
-	# 									# transforms.RandomApply(torch.nn.ModuleList([
-    #                                     #     transforms.RandomHorizontalFlip(p=1),]), p=0.5),
-    #                                     transforms.RandomApply(torch.nn.ModuleList([
-    #                                         transforms.CenterCrop(size=(320,320))]), p=0.1),
-    #                                     # transforms.RandomApply(torch.nn.ModuleList([
-    #                                         # transforms.GaussianBlur((5,9), sigma=(0.1,5))]), p=0.5)),
+                                ]))), #p=p
     }
     return transform_dict[name]
 
@@ -135,10 +125,11 @@ class MaskDataset(Dataset):
         fpath = self.image_files[idx]
         img = Image.open(fpath)
 
+        img = transforms.ToTensor()(img)
+
         if self.transform:
             img = self.transform(img)
 
-        img = transforms.ToTensor()(img)
 
         label = {}
 
