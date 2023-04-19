@@ -1,1 +1,1 @@
-This Repository is my Computer Vision Classification task solution.
+This Repository is for my Computer Vision Image Classification task solution.
