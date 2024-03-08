@@ -1,1 +1,1 @@
-This Repository is for my Computer Vision Image Classification task solution.
+This provide a solution to classify a person's status of wearing mask with image classification taks.
