@@ -50,8 +50,8 @@ def train(dataloader, model, criterion, optimizer, epoch):
         acc = (preds==labels).sum().item()
         loss_items.update(loss.item(), batch)
         acc_items.update(acc/batch, batch)
-    return OrderedDict([('Accuracy', acc_items.avg), 
-                        ('Loss', loss_items.avg)])
+    return OrderedDict([('Train Accuracy', acc_items.avg), 
+                        ('Train Loss', loss_items.avg)])
 
 def eval(dataloader, model, criterion, epoch):
     patience = 10
@@ -161,17 +161,16 @@ def main(args):
         if scheduler:
             scheduler.step()
         metrics = OrderedDict(lr=optimizer.param_groups[0]['lr'])
-        metrics.update([(f"train_{k}", v) for k, v in train_metrics.items()])
-        metrics.update([(f"valid_{k}", v) for k, v in valid_metrics.items()])
+        metrics.update([(f"{k}", v) for k, v in train_metrics.items()])
+        metrics.update([(f"{k}", v) for k, v in valid_metrics.items()])
 
         epoch_msg = (
             f"""{f'{epoch:04d}':^10}"""
-            f"""{f"{metrics['train_loss']:.6f}":^16}"""
-            f"""{f"{metrics['train_acc']:.4f}":^15}"""
-            f"""{f"{metrics['valid_loss']:.6f}":^16}"""
-            f"""{f"{metrics['valid_acc']:.4f}":^15}"""
-            #
-            f"""{f"{metrics['valid_f1']:.6f}":^16}"""
+            f"""{f"{metrics['Train Loss']:.6f}":^16}"""
+            f"""{f"{metrics['Train Accuracy']:.4f}":^15}"""
+            f"""{f"{metrics['Valid Loss']:.6f}":^16}"""
+            f"""{f"{metrics['Valid Accuracy']:.4f}":^15}"""
+            f"""{f"{metrics['F1 score']:.6f}":^16}"""
         )
 
         _logger.info(epoch_msg)
