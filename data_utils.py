@@ -32,11 +32,12 @@ def init_transform(name, p):
                     transforms.Grayscale(num_output_channels=3),
                     transforms.CenterCrop(size=(320,320))]), p=p)
             ]),
-        "train_albu" : Compose([Resize(512,384),
-                            GaussianBlur(51, (0.1, 2.0)),
-                            ColorJitter(brightness=0.5, saturation=0.5, hue=0.5), 
-                            Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-                            ]),
+        "train_albu" : Compose([
+            Resize(512,384),
+            GaussianBlur(51, (0.1, 2.0)),
+            ColorJitter(brightness=0.5, saturation=0.5, hue=0.5), 
+            Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+            ]),
     }
     return transform_dict[name]
 
