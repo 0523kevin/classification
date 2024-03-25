@@ -15,28 +15,31 @@ from albumentations.pytorch import ToTensorV2
 from torchvision import transforms
 from sklearn.model_selection import train_test_split
         
-def init_transform(name, p):
+def init_transform(name, mean, std, p):
     transform_dict = {
-        "valid" : transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)), 
-        "norm" : transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        "valid" : transforms.Compose([
+            transforms.Resize((512,384)),
+            transforms.Normalize(mean=mean, std=std), 
+        ]),
+        "norm" : transforms.Normalize(mean=mean, std=std),
         'grayscale': transforms.Grayscale(num_output_channels=3),
         'gaussian': transforms.GaussianBlur((5,9), sigma=(0.1, 5)),
         'center_crop' : transforms.Compose([
-            transforms.CenterCrop(size=(320,320)),
             transforms.Resize((512,384)),
-            transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
+            transforms.CenterCrop(size=(320,320)),
+            transforms.Normalize(mean=mean, std=std)
             ]),
         'gray_crop': transforms.Compose([
-            transforms.RandomApply(
-                nn.ModuleList([
-                    transforms.Grayscale(num_output_channels=3),
-                    transforms.CenterCrop(size=(320,320))]), p=p)
+            transforms.Resize((512,384)),
+            transforms.Grayscale(num_output_channels=3),
+            transforms.CenterCrop(size=(320,320)),
+            transforms.Normalize(mean=mean, std=std)
             ]),
-        "train_albu" : Compose([
+        "albu" : Compose([
             Resize(512,384),
             GaussianBlur(51, (0.1, 2.0)),
             ColorJitter(brightness=0.5, saturation=0.5, hue=0.5), 
-            Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+            Normalize(mean=mean, std=std),
             ]),
     }
     return transform_dict[name]
@@ -95,6 +98,7 @@ def get_multiclass_label(fpath):
     fpath_split = os.path.split(fpath)
     # mask.jpg -> mask
     mask = fpath_split[1].split('.')[0]
+    # ~~/data/train/images/000001_female_Asian_45/ -> [~~/data/train/images/, 000001_female_Asian_45/]
     identity = os.path.split(fpath_split[0])[1].split('_')
     age, gender = int(identity[3]), identity[1]
     multi_class_label = 6 * MaskLabels.from_str(mask) + 3 * GenderLabels.from_str(gender) + AgeLabels.from_int(age)
@@ -102,7 +106,11 @@ def get_multiclass_label(fpath):
 
 def make_filelist(img_dir, val_size=0.2, stratify=True):
     filelist = glob(f"{img_dir}/**/*.jpg")
+    filelist.sort()
+    
     if stratify:
+        if not filelist:
+            logging.warning(f"No image file found in '{img_dir}'.")
         labels = []
         for fpath in filelist:       
             multi_class_label = get_multiclass_label(fpath)
@@ -118,10 +126,11 @@ def make_filelist(img_dir, val_size=0.2, stratify=True):
         
 class MaskDataset(Dataset):
     num_classes = 3 * 2 * 3
-    def __init__(self, img_files, transform=None):
+    def __init__(self, img_files, transform=None, transform_name=None):
         super().__init__()
         self.img_files = img_files
-        self.transform = transform    
+        self.transform = transform
+        self.transform_name = transform_name
                 
     def set_transform(self, transform):
         self.transform = transform
@@ -129,14 +138,14 @@ class MaskDataset(Dataset):
     def __getitem__(self, idx):
         img_path = self.img_files[idx]
         image = Image.open(img_path)
-        # torchvision.transforms
-        image = transforms.ToTensor()(image)
+        
         if self.transform:
-            image = self.transform(image)
-        # albumentations
-        # image = np.array(image)
-        # if self.transform:
-        #     image = self.transform(image=image)['image']
+            if 'albu' in self.transform_name:
+                image = self.transforme(image=np.array(image))['image']
+            else:
+                # torchvision.transforms
+                image = transforms.ToTensor()(image)
+                image = self.transform(image)
         
         label = get_multiclass_label(img_path)
         return image, label
